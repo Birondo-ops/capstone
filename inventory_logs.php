@@ -23,11 +23,18 @@ if ($filter === 'In') {
     $whereClauses[] = "il.notes LIKE :retail_note";
     $params[':retail_note'] = '%Retail%';
 } elseif ($filter === 'Wholesale') { 
-    $whereClauses[] = "(il.notes LIKE :wholesale_note OR il.notes LIKE :return_note)";
-    $params[':wholesale_note'] = '%Wholesale%';
-    $params[':return_note'] = '%Returned%';
+    // Uses LOWER() so it catches 'wholesale', 'Wholesale', 'REMIT', 'remit', 'dispatch', etc.
+    $whereClauses[] = "(
+        LOWER(il.notes) LIKE :wholesale_note 
+        OR LOWER(il.notes) LIKE :return_note 
+        OR LOWER(il.notes) LIKE :remit_note 
+        OR LOWER(il.notes) LIKE :dispatch_note
+    )";
+    $params[':wholesale_note'] = '%wholesale%';
+    $params[':return_note']    = '%returned%';
+    $params[':remit_note']     = '%remit%';
+    $params[':dispatch_note']  = '%dispatch%';
 }
-
 if (!empty($search)) {
     $whereClauses[] = "(p.product_name LIKE :search OR il.notes LIKE :search OR il.admin_name LIKE :search)";
     $params[':search'] = '%' . $search . '%';
@@ -220,11 +227,16 @@ function e(mixed $value): string {
 
                 <div class="controls-row">
                     <div class="filter-group" style="display:flex; gap:8px; flex-wrap: wrap;">
-                        <a href="?filter=All<?= !empty($start_date) ? "&start_date=$start_date&end_date=$end_date" : '' ?>" class="filter-btn <?= $filter === 'All' ? 'active' : '' ?>">All</a>
-                        <a href="?filter=In<?= !empty($start_date) ? "&start_date=$start_date&end_date=$end_date" : '' ?>" class="filter-btn <?= $filter === 'In' ? 'active' : '' ?>">In</a>
-                        <a href="?filter=Out<?= !empty($start_date) ? "&start_date=$start_date&end_date=$end_date" : '' ?>" class="filter-btn <?= $filter === 'Out' ? 'active' : '' ?>">Out</a>
-                        <a href="?filter=Retail<?= !empty($start_date) ? "&start_date=$start_date&end_date=$end_date" : '' ?>" class="filter-btn <?= $filter === 'Retail' ? 'active' : '' ?>">Retail</a>
-                        <a href="?filter=Wholesale<?= !empty($start_date) ? "&start_date=$start_date&end_date=$end_date" : '' ?>" class="filter-btn <?= $filter === 'Wholesale' ? 'active' : '' ?>">Wholesale</a>
+                        <?php 
+                            $queryString = '';
+                            if (!empty($search)) $queryString .= "&search=" . urlencode($search);
+                            if (!empty($start_date) && !empty($end_date)) $queryString .= "&start_date=$start_date&end_date=$end_date";
+                        ?>
+                        <a href="?filter=All<?= $queryString ?>" class="filter-btn <?= $filter === 'All' ? 'active' : '' ?>">All</a>
+                        <a href="?filter=In<?= $queryString ?>" class="filter-btn <?= $filter === 'In' ? 'active' : '' ?>">In</a>
+                        <a href="?filter=Out<?= $queryString ?>" class="filter-btn <?= $filter === 'Out' ? 'active' : '' ?>">Out</a>
+                        <a href="?filter=Retail<?= $queryString ?>" class="filter-btn <?= $filter === 'Retail' ? 'active' : '' ?>">Retail</a>
+                        <a href="?filter=Wholesale<?= $queryString ?>" class="filter-btn <?= $filter === 'Wholesale' ? 'active' : '' ?>">Wholesale</a>
                     </div>
                     <form method="GET" style="display:flex; gap:10px;">
                         <input type="hidden" name="filter" value="<?= e($filter) ?>">

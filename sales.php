@@ -8,49 +8,20 @@ if (!isset($_SESSION['admin_id'])) {
 }
 
 try {
-
+    // Pull sales records directly from the sales table
     $query = "
-        (SELECT 
-            at.id AS sale_id, 
-            at.product_name, 
-            at.worker_name AS customer_name, 
-            at.qty_sold AS qty, 
-            (at.received_amount / NULLIF(at.qty_sold, 0)) AS unit_price, 
-            at.received_amount AS total, 
-            at.created_at AS sale_date,
-            'Wholesale' AS sale_type
-        FROM audit_trail at
-        WHERE at.status = 'Completed Remittance')
-        
-        UNION ALL
-
-        (SELECT 
-            ro.id AS sale_id, 
-            p.product_name, 
-            'Walk-in Retail' AS customer_name, 
-            ro.qty AS qty, 
-            (ro.subtotal / NULLIF(ro.qty, 0)) AS unit_price, 
-            ro.subtotal AS total, 
-            ro.order_date AS sale_date,
-            'Retail' AS sale_type
-        FROM retail_orders ro
-        JOIN products p ON ro.product_id = p.id)
-
-        UNION ALL
-
-        (SELECT 
-            s.id AS sale_id, 
-            s.product AS product_name, 
-            s.worker AS customer_name, 
-            NULL AS qty, 
-            NULL AS unit_price, 
-            s.subtotal AS total, 
-            s.created_at AS sale_date,
-            'Balance' AS sale_type
-        FROM sales s
-        WHERE s.type = 'BALANCE')
-        
-        ORDER BY sale_date DESC";
+        SELECT 
+            id AS sale_id, 
+            type AS sale_type, 
+            product AS product_name, 
+            worker AS customer_name, 
+            qty, 
+            unit_price, 
+            subtotal AS total, 
+            created_at AS sale_date
+        FROM sales
+        ORDER BY created_at DESC
+    ";
         
     $stmt = $pdo->query($query);
     $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -200,10 +171,11 @@ try {
                                 <td>#<?= htmlspecialchars($sale['sale_id']) ?></td>
                                 <td>
                                     <?php 
+                                        $type = strtolower(trim($sale['sale_type']));
                                         $typeClass = 'type-retail';
-                                        if ($sale['sale_type'] === 'Wholesale') {
+                                        if ($type === 'wholesale') {
                                             $typeClass = 'type-wholesale';
-                                        } elseif ($sale['sale_type'] === 'Balance') {
+                                        } elseif ($type === 'balance') {
                                             $typeClass = 'type-balance';
                                         }
                                     ?>
@@ -216,7 +188,7 @@ try {
                                 
                                 <!-- Quantity Column -->
                                 <td>
-                                    <?php if ($sale['sale_type'] === 'Balance'): ?>
+                                    <?php if (is_null($sale['qty']) || $sale['qty'] == 0): ?>
                                         <span class="text-na">N/A</span>
                                     <?php else: ?>
                                         <?= number_format($sale['qty']) ?>
@@ -225,7 +197,7 @@ try {
 
                                 <!-- Unit Price Column -->
                                 <td>
-                                    <?php if ($sale['sale_type'] === 'Balance'): ?>
+                                    <?php if (is_null($sale['unit_price']) || $sale['unit_price'] == 0): ?>
                                         <span class="text-na">N/A</span>
                                     <?php else: ?>
                                         ₱<?= number_format($sale['unit_price'], 2) ?>

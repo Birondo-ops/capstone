@@ -23,18 +23,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_settlement'])) {
         $worker_name = $stmtW->fetchColumn() ?: 'Unknown Worker';
 
         // Explicitly set sale type to WHOLESALE for dispatcher remittance
-        $session_type = 'WHOLESALE';
+        $session_type = 'Wholesale';
 
         $total_expected_due = 0.00;
         $item_calculations = [];
 
-        //Calculate sales and validate returns
+        // Calculate sales and validate returns
         if (isset($_POST['returns'])) {
             foreach ($_POST['returns'] as $r_item_id => $return_qty) {
                 $return_qty = max(0, (int)$return_qty);
-                $qty_taken  = (int)$_POST['qtys_taken'][$r_item_id];
-                $pid        = (int)$_POST['product_ids'][$r_item_id];
-                $p_name     = $_POST['product_names'][$r_item_id];
+                $qty_taken  = (int)($_POST['qtys_taken'][$r_item_id] ?? 0);
+                $pid        = (int)($_POST['product_ids'][$r_item_id] ?? 0);
+                $p_name     = $_POST['product_names'][$r_item_id] ?? 'Unknown Product';
 
                 if ($return_qty > $qty_taken) {
                     throw new Exception("Return quantity for $p_name cannot exceed quantity taken.");
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_settlement'])) {
             }
         }
 
-        //Process Stock Updates, Inventory Logs, Sales Insertion, and Audit Trail
+        // Process Stock Updates, Inventory Logs, Sales Insertion, and Audit Trail
         foreach ($item_calculations as $r_item_id => $data) {
             $pid = $data['pid'];
             $p_name = $data['p_name'];
@@ -67,6 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_settlement'])) {
             $qty_sold = $data['qty_sold'];
             $price_at_time = $data['price_at_time'];
             $item_total_sale = $data['item_total_sale'];
+
+            if ($pid <= 0) {
+                throw new Exception("Invalid Product ID for product: " . $p_name);
+            }
 
             // Calculate share of received cash for audit log
             $item_received_share = ($total_expected_due > 0) ? ($item_total_sale / $total_expected_due) * $received_amount : 0;
@@ -80,15 +84,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_settlement'])) {
                 $pdo->prepare("UPDATE products SET quantity = quantity + ? WHERE id = ?")
                     ->execute([$return_qty, $pid]);
 
-                $pdo->prepare("INSERT INTO inventory_logs (product_id, quantity_change, action, notes, admin_name) VALUES (?, ?, 'Added', ?, ?)")
-                    ->execute([$pid, $return_qty, "Returned from Session #$sid ({$worker_name})", $admin_name]);
+                $logReturn = $pdo->prepare("INSERT INTO inventory_logs (product_id, quantity_change, action, notes, admin_name) VALUES (?, ?, 'Added', ?, ?)");
+                $logReturn->execute([$pid, $return_qty, "Returned from Session #$sid ({$worker_name})", $admin_name]);
             }
 
             // Inventory Log & Wholesale Sales Record for Sold Items
             if ($qty_sold > 0) {
                 // Stock Removed Log
-                $pdo->prepare("INSERT INTO inventory_logs (product_id, quantity_change, action, notes, admin_name) VALUES (?, ?, 'Removed', ?, ?)")
-                    ->execute([$pid, $qty_sold, "Sold from Session #$sid ({$worker_name})", $admin_name]);
+                $logSold = $pdo->prepare("INSERT INTO inventory_logs (product_id, quantity_change, action, notes, admin_name) VALUES (?, ?, 'Removed', ?, ?)");
+                $logSold->execute([$pid, $qty_sold, "Sold from Session #$sid ({$worker_name})", $admin_name]);
 
                 // Insert Into Sales Table strictly as WHOLESALE
                 $stmtSales = $pdo->prepare("
@@ -96,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_settlement'])) {
                     VALUES (?, ?, ?, ?, ?, ?, NOW())
                 ");
                 $stmtSales->execute([
-                    $session_type, // Strictly 'WHOLESALE'
+                    $session_type,
                     $p_name,
                     $worker_name,
                     $qty_sold,
@@ -127,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_settlement'])) {
             }
         }
 
-        //Close Dispatch Session
+        // Close Dispatch Session
         $closeSession = $pdo->prepare("UPDATE dispatch_sessions SET status = 'Completed', total_collected = ? WHERE id = ?");
         $closeSession->execute([$received_amount, $sid]);
 

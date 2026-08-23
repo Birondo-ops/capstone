@@ -7,9 +7,9 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 try {
-
     $stmt_p = $pdo->query("SELECT id, product_name, retail_price FROM products ORDER BY product_name ASC");
     $all_products = $stmt_p->fetchAll();
+    
     $stmt_o = $pdo->query("
         SELECT ro.*, p.product_name, p.retail_price as unit_price
         FROM retail_orders ro 
@@ -36,16 +36,9 @@ try {
 <div class="container">
     <aside class="sidebar">
         <div class="sidebar-header">
-
-                <img src="assets/img/logo.png" alt="Salescore Logo" class="sidebar-logo">
-                
-            </div>
-            <nav style="flex-grow: 1;">
-
             <img src="assets/img/logo.png" alt="Salescore Logo" class="sidebar-logo">
         </div>
         <nav style="flex-grow: 1;">
-
             <a href="index.php" class="nav-item" data-title="Dashboard">
                 <div class="icon"><i class="fa-solid fa-chart-line"></i></div>
                 <span>Dashboard</span>
@@ -62,12 +55,10 @@ try {
                 <div class="icon"><i class="fa-solid fa-clipboard-list"></i></div>
                 <span>Dispatchers</span>
             </a>
-
-            <a href="balance.php" class="nav-item " data-title="Worker Balances">
+            <a href="balance.php" class="nav-item" data-title="Worker Balances">
                 <div class="icon"><i class="fa-solid fa-scale-unbalanced"></i></div>
                 <span>Worker Balances</span>
             </a>
-
             <a href="retailer.php" class="nav-item active" data-title="Retailer">
                 <div class="icon"><i class="fa-solid fa-shop"></i></div>
                 <span>Retailer</span>
@@ -101,11 +92,10 @@ try {
                 <div class="out" style="background: #dcfce7; color: #15803d; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
                     Order saved successfully!
                 </div>
-            <<?php elseif ($_GET['status'] === 'deleted'): ?>
+            <?php elseif ($_GET['status'] === 'deleted'): ?>
                 <div class="out" style="background: #dcfce7; color: #15803d; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
                     Order deleted successfully!
                 </div>
-
             <?php elseif ($_GET['status'] === 'error'): ?>
                 <div class="out" style="background: #fee2e2; color: #b91c1c; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
                     Error: <?= htmlspecialchars($_GET['msg'] ?? 'An error occurred.') ?>
@@ -141,14 +131,13 @@ try {
                                     <a href="function/edit_retail.php?id=<?= $row['id'] ?>">
                                         <i class="fa-solid fa-pencil" style="color:#666; margin-right:10px; cursor:pointer;"></i>
                                     </a>
-                                   <a href="function/delete_retail.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure you want to delete this order?');">
-                                            <i class="fa-solid fa-trash-can" style="color:#e74c3c; cursor:pointer;"></i>
-                                        </a>
-                                    </td>
+                                    <a href="function/delete_retail.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure you want to delete this order?');">
+                                        <i class="fa-solid fa-trash-can" style="color:#e74c3c; cursor:pointer;"></i>
+                                    </a>
+                                </td>
                             </tr>
                             <?php endforeach; ?>
                             
-                            <!-- Filler rows to match snapshot style -->
                             <?php for($i=0; $i < (5 - count($orders)); $i++): ?>
                                 <tr style="height:48px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
                             <?php endfor; ?>
@@ -167,9 +156,12 @@ try {
             <span>ORDER ITEMS</span>
             <span onclick="toggleModal('orderModal', false)" style="cursor:pointer;">&times;</span>
         </div>
-        <form class="order-form" method="POST" action="function/save_retail.php">
-            <label>Date Today:</label>
-            <input type="date" name="order_date" value="<?= date('Y-m-d') ?>" required>
+        <form class="order-form" method="POST" action="function/save_retail.php" onsubmit="prepareDateTime()">
+            <label>Order Date & Time:</label>
+            <!-- Changed to datetime-local to allow selecting or capturing time -->
+            <input type="datetime-local" id="order_datetime_picker" required>
+            <!-- Hidden field that passes YYYY-MM-DD HH:MM:SS to backend -->
+            <input type="hidden" name="order_date" id="order_date_hidden">
 
             <label>Product Name:</label>
             <select name="product_id" id="prodSelect" onchange="calc()" required>
@@ -206,7 +198,24 @@ try {
 
 <script>
     function toggleModal(id, show) { 
-        document.getElementById(id).style.display = show ? 'flex' : 'none'; 
+        const modal = document.getElementById(id);
+        modal.style.display = show ? 'flex' : 'none'; 
+        
+        if (show) {
+            // Pre-fill datetime-local picker with current local timestamp
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('order_datetime_picker').value = now.toISOString().slice(0, 16);
+        }
+    }
+
+    function prepareDateTime() {
+        const pickerValue = document.getElementById('order_datetime_picker').value;
+        if (pickerValue) {
+            // Converts "YYYY-MM-DDTHH:MM" to SQL standard "YYYY-MM-DD HH:MM:00"
+            const formatted = pickerValue.replace('T', ' ') + ':00';
+            document.getElementById('order_date_hidden').value = formatted;
+        }
     }
 
     function calc() {

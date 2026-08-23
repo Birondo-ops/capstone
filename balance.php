@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['settle_id'])) {
                 VALUES ('BALANCE', ?, ?, 1, ?, ?, NOW())
             ");
             $stmtSales->execute([
-                "Shortage Settlement (Session #{$session_id})",
+                "Shortage Settlement",
                 $worker,
                 $amount,
                 $amount

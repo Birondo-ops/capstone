@@ -10,7 +10,7 @@ function env($key, $default = '') {
 $host     = env('MYSQLHOST', '127.0.0.1');
 $dbname   = env('MYSQLDATABASE', 'capstone_1');
 $username = env('MYSQLUSER', 'root');
-$password = env('MYSQLPASSWORD', 'YarfSiaympdWkYInJcczySGNAcFBVghi');
+$password = env('MYSQLPASSWORD', '');
 $port     = env('MYSQLPORT', '3306');
 
 try {

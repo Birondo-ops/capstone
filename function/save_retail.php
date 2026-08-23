@@ -11,36 +11,61 @@ class RetailController {
         $this->pdo = $pdo;
     }
 
-    /**
-     * Handles the complete process of a retail transaction
-     * @param array $data The $_POST data.
-     * @param string $adminName The name of the session user.
-     * @throws Exception
-     */
     public function handleSale(array $data, string $adminName): bool {
         try {
             $this->pdo->beginTransaction();
 
             $productId = isset($data['product_id']) ? (int)$data['product_id'] : 0;
             $qty       = isset($data['qty']) ? (int)$data['qty'] : 0;
-            $orderDate = $data['order_date'] ?? date('Y-m-d H:i:s');
+            
+            // Extract selected date from form or fallback to right now
+            $inputDate = !empty($data['order_date']) ? trim($data['order_date']) : date('Y-m-d H:i:s');
+
+            // Check if inputDate contains time (HH:MM:SS)
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $inputDate)) {
+                // If only YYYY-MM-DD was provided, attach current real-time clock
+                $fullDateTime = $inputDate . ' ' . date('H:i:s');
+            } else {
+                // If it already has time or uses default, format appropriately
+                $fullDateTime = date('Y-m-d H:i:s', strtotime($inputDate));
+            }
+
+            // Standard YYYY-MM-DD for retail_orders table (if DATE column)
+            $orderDate = date('Y-m-d', strtotime($fullDateTime));
 
             if ($qty <= 0) {
                 throw new Exception("Invalid quantity. Please enter a number greater than 0.");
             }
 
-            $product = $this->validateStock($productId, $qty);
-            $subtotal = (float)$product['retail_price'] * $qty;
+            $product   = $this->validateStock($productId, $qty);
+            $unitPrice = (float)$product['retail_price'];
+            $subtotal  = $unitPrice * $qty;
 
-            $this->recordOrder($productId, $qty, $subtotal, $orderDate);
+            // 1. Insert into sales table with full date and time
+            $this->recordSale(
+                'Retail', 
+                $product['product_name'], 
+                $adminName, 
+                $qty, 
+                $unitPrice, 
+                $subtotal, 
+                $fullDateTime
+            );
+
+            // 2. Insert into retail_orders table
+            $this->recordRetailOrder($productId, $qty, $subtotal, $orderDate);
+
+            // 3. Deduct stock & log
             $this->deductInventory($productId, $qty);
-            $this->logTransaction($productId, $qty, $orderDate, $adminName);
+            $this->logTransaction($productId, $qty, $fullDateTime, $adminName);
 
             $this->pdo->commit();
             return true;
 
         } catch (Exception $e) {
-            $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
             throw $e; 
         }
     }
@@ -61,14 +86,38 @@ class RetailController {
         return $product;
     }
 
-    private function recordOrder(int $pid, int $qty, float $total, string $date): void {
-        $sql = "INSERT INTO retail_orders (product_id, qty, subtotal, order_date) 
-                VALUES (:pid, :qty, :total, :date)";
+    private function recordSale(
+        string $type, 
+        string $productName, 
+        string $worker, 
+        int $qty, 
+        float $unitPrice, 
+        float $subtotal, 
+        string $date
+    ): void {
+        $sql = "INSERT INTO sales (type, product, worker, qty, unit_price, subtotal, created_at) 
+                VALUES (:type, :product, :worker, :qty, :unit_price, :subtotal, :created_at)";
+        
         $this->pdo->prepare($sql)->execute([
-            ':pid'   => $pid,
-            ':qty'   => $qty,
-            ':total' => $total,
-            ':date'  => $date
+            ':type'       => $type,
+            ':product'    => $productName,
+            ':worker'     => $worker,
+            ':qty'        => $qty,
+            ':unit_price' => $unitPrice,
+            ':subtotal'   => $subtotal,
+            ':created_at' => $date
+        ]);
+    }
+
+    private function recordRetailOrder(int $pid, int $qty, float $subtotal, string $dateFormatted): void {
+        $sql = "INSERT INTO retail_orders (product_id, qty, subtotal, order_date) 
+                VALUES (:pid, :qty, :subtotal, :order_date)";
+        
+        $this->pdo->prepare($sql)->execute([
+            ':pid'        => $pid,
+            ':qty'        => $qty,
+            ':subtotal'   => $subtotal,
+            ':order_date' => $dateFormatted
         ]);
     }
 
