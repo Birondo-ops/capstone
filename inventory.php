@@ -144,10 +144,11 @@ if (file_exists($apiFile)) {
                                    </div>' 
                                 : '';
                             
+                            // FIX: Relative path without leading slash
                             $fileName = (!empty($product['image_path']) && $product['image_path'] !== 'default-product.png') 
                                 ? $product['image_path'] 
                                 : 'default-product.png';
-                            $imageSrc = '/uploads/' . e($fileName);
+                            $imageSrc = 'uploads/' . e($fileName);
                             $safeName = e($product['product_name']);
                         ?>
                             <div class="product-card" data-category="<?= e($product['category'] ?? ''); ?>">
@@ -162,9 +163,9 @@ if (file_exists($apiFile)) {
                                 
                                 <div class="card-image-wrapper">
                                     <img src="<?php echo $imageSrc; ?>" 
-                                        alt="<?php echo e($product['product_name']); ?>" 
-                                        class="product-image"
-                                        onerror="this.onerror=null; this.src='uploads/default-product.png';" />
+                                         alt="<?php echo e($product['product_name']); ?>" 
+                                         class="product-image"
+                                         onerror="this.onerror=null; this.src='uploads/default-product.png';" />
                                 </div>
                                 
                                 <div class="card-info">
