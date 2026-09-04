@@ -42,11 +42,16 @@ class DispatchController {
             throw new Exception("Please complete all required worker and product fields.");
         }
 
+        // Format user-selected datetime for MySQL (YYYY-MM-DD HH:MM:SS)
+        $dispatchDatetime = !empty($data['date_today']) 
+            ? date('Y-m-d H:i:s', strtotime($data['date_today'])) 
+            : date('Y-m-d H:i:s');
+
         try {
             $this->pdo->beginTransaction();
             
             $stmt = $this->pdo->prepare("INSERT INTO dispatch_sessions (worker_name, date_today, status) VALUES (?, ?, 'Active')");
-            $stmt->execute([trim($data['worker_name']), $data['date_today']]);
+            $stmt->execute([trim($data['worker_name']), $dispatchDatetime]);
             $sid = (int)$this->pdo->lastInsertId();
 
             $worker = trim($data['worker_name']);
@@ -139,6 +144,6 @@ class DispatchController {
 
         // Insert log
         $log = $this->pdo->prepare("INSERT INTO inventory_logs (product_id, quantity_change, action, notes, admin_name) VALUES (?, ?, 'Removed', ?, ?)");
-        $log->execute([$pid, $qty, "From  dispatch session #{$sid} ({$worker})", $admin]);
+        $log->execute([$pid, $qty, "From dispatch session #{$sid} ({$worker})", $admin]);
     }
 }

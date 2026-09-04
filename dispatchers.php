@@ -88,7 +88,7 @@ $all_products = $pdo->query("SELECT id, product_name, wholesale_price, quantity 
         <div class="sidebar-header">
             <img src="assets/img/logo.png" alt="Salescore Logo" class="sidebar-logo">
         </div>
-     <nav style="flex-grow: 1;">
+        <nav style="flex-grow: 1;">
             <a href="index.php" class="nav-item" data-title="Dashboard">
                 <div class="icon"><i class="fa-solid fa-chart-line"></i></div>
                 <span>Dashboard</span>
@@ -174,6 +174,10 @@ $all_products = $pdo->query("SELECT id, product_name, wholesale_price, quantity 
                     <div>
                         <span style="color: var(--text); font-weight: 700;">Worker: <?php echo htmlspecialchars($data['info']['name']); ?></span>
                         <span class="status-badge" style="margin-left:10px; background: #dcfce7; color: #15803d; padding: 3px 8px; border-radius: 12px; font-size: 12px;">Active</span>
+                        <span style="margin-left: 15px; color: #64748b; font-size: 13px;">
+                            <i class="fa-regular fa-clock"></i> 
+                            <?php echo date('M d, Y h:i A', strtotime($data['info']['date_today'])); ?>
+                        </span>
                     </div>
                     <div>
                         <button type="button" 
@@ -242,7 +246,9 @@ $all_products = $pdo->query("SELECT id, product_name, wholesale_price, quantity 
             <div class="form-body" style="padding:15px 0;">
                 <label style="margin-bottom: 5px; display:block; font-weight:600;">Worker Name:</label>
                 <input type="text" name="worker_name" required style="width:100%; padding:10px; margin-bottom:15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-                <input type="hidden" name="date_today" value="<?php echo date('Y-m-d'); ?>">
+                
+                <label style="margin-bottom: 5px; display:block; font-weight:600;">Dispatch Date & Time:</label>
+                <input type="datetime-local" name="date_today" value="<?php echo date('Y-m-d\TH:i'); ?>" required style="width:100%; padding:10px; margin-bottom:15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
                 
                 <div style="display:flex; width:100%; justify-content: space-between; align-items:center; margin-bottom:10px;">
                     <label style="margin: 0; font-weight:600;">Products:</label>

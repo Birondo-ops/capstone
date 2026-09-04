@@ -23,7 +23,6 @@ if ($filter === 'In') {
     $whereClauses[] = "il.notes LIKE :retail_note";
     $params[':retail_note'] = '%Retail%';
 } elseif ($filter === 'Wholesale') { 
-    // Uses LOWER() so it catches 'wholesale', 'Wholesale', 'REMIT', 'remit', 'dispatch', etc.
     $whereClauses[] = "(
         LOWER(il.notes) LIKE :wholesale_note 
         OR LOWER(il.notes) LIKE :return_note 
@@ -35,8 +34,9 @@ if ($filter === 'In') {
     $params[':remit_note']     = '%remit%';
     $params[':dispatch_note']  = '%dispatch%';
 }
+
 if (!empty($search)) {
-    $whereClauses[] = "(p.product_name LIKE :search OR il.notes LIKE :search OR il.admin_name LIKE :search)";
+    $whereClauses[] = "(p.product_name LIKE :search OR il.notes LIKE :search OR il.admin_name LIKE :search OR (il.product_id IS NULL AND 'deleted product' LIKE LOWER(:search)))";
     $params[':search'] = '%' . $search . '%';
 }
 
@@ -50,9 +50,12 @@ $whereSQL = !empty($whereClauses) ? " WHERE " . implode(" AND ", $whereClauses) 
 
 // --- EXPORT TO CSV / EXCEL LOGIC ---
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    $exportQuery = "SELECT il.created_at, il.admin_name, p.product_name, p.variation, il.action, il.quantity_change, il.notes
+    $exportQuery = "SELECT il.created_at, il.admin_name, 
+                           COALESCE(p.product_name, 'Deleted Product') AS product_name, 
+                           COALESCE(p.variation, 'N/A') AS variation, 
+                           il.action, il.quantity_change, il.notes
                     FROM inventory_logs il 
-                    JOIN products p ON il.product_id = p.id
+                    LEFT JOIN products p ON il.product_id = p.id
                     $whereSQL
                     ORDER BY il.created_at DESC";
 
@@ -66,13 +69,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename="' . $filename . '"');
 
     $output = fopen('php://output', 'w');
-    // Add UTF-8 BOM for Microsoft Excel compatibility
-    fputs($output, "\xEF\xBB\xBF");
+    fputs($output, "\xEF\xBB\xBF"); // UTF-8 BOM
 
-    // CSV Header row
     fputcsv($output, ['Date & Time', 'Admin/Source', 'Product Name', 'Variation', 'Action Type', 'Quantity Change', 'Notes']);
 
-    // CSV Data rows
     foreach ($exportLogs as $row) {
         $changeSign = ($row['action'] === 'Added') ? '+' : '-';
         fputcsv($output, [
@@ -90,17 +90,20 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     exit();
 }
 
-$query = "SELECT il.*, p.product_name, p.variation
-        FROM inventory_logs il 
-        JOIN products p ON il.product_id = p.id
-        $whereSQL
-        ORDER BY il.created_at DESC";
+// Main table display query joining with products table
+$query = "SELECT il.*, 
+                 COALESCE(p.product_name, 'Deleted Product') AS product_name, 
+                 COALESCE(p.variation, 'N/A') AS variation
+          FROM inventory_logs il 
+          LEFT JOIN products p ON il.product_id = p.id
+          $whereSQL
+          ORDER BY il.created_at DESC";
 
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Totals calculation reflecting active date filter if set
+// Totals calculation
 $dateWhere = "";
 $dateParams = [];
 if (!empty($start_date) && !empty($end_date)) {
