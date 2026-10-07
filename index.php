@@ -32,6 +32,9 @@ while ($row = $stmt->fetch()) {
     $dataMap[$row['m']] = (float)$row['total_rev']; 
 }
 
+$currentMonthKey = date('Y-m');
+$currentMonthRevenue = $dataMap[$currentMonthKey] ?? 0;
+
 $months = [];
 for ($i = 4; $i >= 0; $i--) { $months[] = date('Y-m', strtotime("-$i month")); }
 $monthlyLabels = [];
@@ -51,7 +54,7 @@ $stmtDaily = $pdo->prepare($dailySalesQuery);
 $stmtDaily->execute(['today1' => $today, 'today2' => $today]);
 $dailySales = $stmtDaily->fetchColumn() ?: 0;
 
-// Actual Yearly Sales Calculation
+// Yearly Sales Calculation
 $yearlySalesQuery = "SELECT SUM(rev) FROM (
                         SELECT total_collected as rev FROM dispatch_sessions WHERE status='Completed' AND YEAR(date_today) = :year1 
                         UNION ALL 
@@ -338,7 +341,7 @@ if ($forecast === false) {
 
                 <div class="stat-card" style="border-left: 5px solid #f28c28;">
                     <h3 style="color:#f28c28; font-size: 0.8rem;">MONTH REVENUE</h3>
-                    <div class="value">₱<?= number_format(array_sum($monthlyValues), 2) ?></div>
+                    <div class="value">₱<?= number_format($currentMonthRevenue, 2) ?></div>
                 </div>
 
                 <div class="stat-card" style="border-left: 5px solid #4e73df;">
