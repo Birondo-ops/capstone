@@ -63,7 +63,7 @@ class DispatchController {
                 $pid = (int)$pid;
 
                 if ($qty > 0) {
-                    $this->processItem($sid, $pid, $qty, $worker, $admin);
+                    $this->processItem($sid, $pid, $qty, $worker);
                 }
             }
 
@@ -97,7 +97,7 @@ class DispatchController {
             $newPid = (int)$data['new_product_id'];
             $qty = (int)$data['new_qty'];
 
-            $this->processItem($sessionId, $newPid, $qty, $worker, $admin);
+            $this->processItem($sessionId, $newPid, $qty, $worker);
 
             $this->pdo->commit();
             return true;
@@ -109,9 +109,9 @@ class DispatchController {
         }
     }
 
-    private function processItem(int $sid, int $pid, int $qty, string $worker, string $admin): void {
-        // Fetch product details
-        $p = $this->pdo->prepare("SELECT product_name, quantity, wholesale_price FROM products WHERE id = ?");
+    private function processItem(int $sid, int $pid, int $qty, string $worker): void {
+        // Fetch product details and lock the row to prevent concurrent race conditions (overselling)
+        $p = $this->pdo->prepare("SELECT product_name, quantity, wholesale_price FROM products WHERE id = ? FOR UPDATE");
         $p->execute([$pid]);
         $prod = $p->fetch(PDO::FETCH_ASSOC);
 
@@ -138,12 +138,8 @@ class DispatchController {
             $insertItem->execute([$sid, $pid, $qty, $prod['wholesale_price']]);
         }
 
-        // Deduct inventory stock
+        // Deduct inventory stock safely
         $deductStock = $this->pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ?");
         $deductStock->execute([$qty, $pid]);
-
-        // Insert log
-        $log = $this->pdo->prepare("INSERT INTO inventory_logs (product_id, quantity_change, action, notes, admin_name) VALUES (?, ?, 'Removed', ?, ?)");
-        $log->execute([$pid, $qty, "From dispatch session #{$sid} ({$worker})", $admin]);
     }
 }
